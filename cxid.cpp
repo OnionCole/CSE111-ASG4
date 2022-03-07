@@ -1,4 +1,5 @@
 // $Id: cxid.cpp,v 1.10 2021-11-16 16:11:40-08 - - $
+// SERVER
 
 #include <iostream>
 #include <string>
@@ -16,6 +17,13 @@ using namespace std;
 
 logstream outlog (cout);
 struct cxi_exit: public exception {};
+
+void reply_put(accepted_socket& client_sock, cxi_header& header) {}
+
+void reply_rm(accepted_socket& client_sock, cxi_header& header) {}
+
+void reply_get(accepted_socket& client_sock, cxi_header& header) {}
+
 
 void reply_ls (accepted_socket& client_sock, cxi_header& header) {
    static const char ls_cmd[] = "ls -l 2>&1";
@@ -48,14 +56,23 @@ void reply_ls (accepted_socket& client_sock, cxi_header& header) {
 void run_server (accepted_socket& client_sock) {
    outlog.execname (outlog.execname() + "*");
    outlog << "connected to " << to_string (client_sock) << endl;
-   try {   
+   try {
       for (;;) {
          cxi_header header; 
          recv_packet (client_sock, &header, sizeof header);
          DEBUGF ('h', "received header " << header);
          switch (header.command) {
-            case cxi_command::LS: 
-               reply_ls (client_sock, header);
+            case cxi_command::PUT:
+               reply_put (client_sock, header);
+               break;
+            case cxi_command::RM:
+               reply_rm(client_sock, header);
+               break;
+            case cxi_command::GET:
+               reply_get(client_sock, header);
+               break;
+            case cxi_command::LS:
+               reply_ls(client_sock, header);
                break;
             default:
                outlog << "invalid client header:" << header << endl;
