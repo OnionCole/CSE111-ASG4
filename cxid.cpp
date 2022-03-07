@@ -15,10 +15,38 @@ using namespace std;
 #include "protocol.h"
 #include "socket.h"
 
+# define BUFFER_SIZE 0x1000
+
+
 logstream outlog (cout);
 struct cxi_exit: public exception {};
 
-void reply_put(accepted_socket& client_sock, cxi_header& header) {}
+void reply_put(accepted_socket& client_sock, cxi_header& header) {
+   // ASSUMING FILE FITS IN ONE BUFFER
+
+   ofstream ofs{ header.filename, ostream::out | ostream::binary 
+         | ostream::trunc };
+   uint32_t bytes = ntohl(header.nbytes);
+
+   char payload[BUFFER_SIZE];
+   recv_packet(client_sock, &payload, bytes);
+   if (ofs) {
+      ofs.write(payload, bytes);
+   }
+
+   // send back
+
+   if (!ofs) {
+      header.command = cxi_command::NAK;
+      header.nbytes = htonl((int32_t)errno);
+   } else {
+      header.command = cxi_command::ACK;
+      header.nbytes = htonl((int32_t)0);
+   }
+   memset(header.filename, 0, FILENAME_SIZE);
+
+   send_packet(client_sock, &header, sizeof header);
+}
 
 void reply_rm(accepted_socket& client_sock, cxi_header& header) {
    if (unlink(header.filename) != 0) {  // fail
@@ -48,7 +76,7 @@ void reply_ls (accepted_socket& client_sock, cxi_header& header) {
    }
 
    string ls_output;
-   char buffer[0x1000];
+   char buffer[BUFFER_SIZE];
    for (;;) {
       char* rc = fgets (buffer, sizeof buffer, ls_pipe);
       if (rc == nullptr) break;
