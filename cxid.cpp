@@ -20,7 +20,18 @@ struct cxi_exit: public exception {};
 
 void reply_put(accepted_socket& client_sock, cxi_header& header) {}
 
-void reply_rm(accepted_socket& client_sock, cxi_header& header) {}
+void reply_rm(accepted_socket& client_sock, cxi_header& header) {
+   if (unlink(header.filename) != 0) {  // fail
+      header.command = cxi_command::NAK;
+      header.nbytes = htonl((int32_t)errno);
+   } else {  // success
+      header.command = cxi_command::ACK;
+      header.nbytes = htonl((int32_t)0);
+   }
+   memset(header.filename, 0, FILENAME_SIZE);
+   
+   send_packet(client_sock, &header, sizeof header);
+}
 
 void reply_get(accepted_socket& client_sock, cxi_header& header) {}
 
@@ -35,6 +46,7 @@ void reply_ls (accepted_socket& client_sock, cxi_header& header) {
       send_packet (client_sock, &header, sizeof header);
       return;
    }
+
    string ls_output;
    char buffer[0x1000];
    for (;;) {
@@ -43,6 +55,7 @@ void reply_ls (accepted_socket& client_sock, cxi_header& header) {
       ls_output.append (buffer);
    }
    pclose (ls_pipe);
+   
    header.command = cxi_command::LSOUT;
    header.nbytes = htonl (ls_output.size());
    memset (header.filename, 0, FILENAME_SIZE);
