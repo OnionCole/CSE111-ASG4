@@ -28,7 +28,10 @@ struct cxi_exit: public exception {};
 unordered_map<string,cxi_command> command_map {
    {"exit", cxi_command::EXIT},
    {"help", cxi_command::HELP},
-   {"ls"  , cxi_command::LS  },
+   {"put",  cxi_command::PUT},
+   {"get",  cxi_command::GET},
+   {"rm",   cxi_command::RM},
+   {"ls",   cxi_command::LS},
 };
 
 static const char help[] = R"||(
@@ -99,6 +102,7 @@ int main (int argc, char** argv) {
          string line;
          getline (cin, line);
          if (cin.eof()) throw cxi_exit();
+
          const auto& itor = command_map.find (line);
          cxi_command cmd = itor == command_map.end()
                          ? cxi_command::ERROR : itor->second;
@@ -108,6 +112,15 @@ int main (int argc, char** argv) {
                break;
             case cxi_command::HELP:
                cxi_help();
+               break;
+            case cxi_command::PUT:
+               cxi_put(server);
+               break;
+            case cxi_command::GET:
+               cxi_get(server);
+               break;
+            case cxi_command::RM:
+               cxi_rm(server);
                break;
             case cxi_command::LS:
                cxi_ls (server);
