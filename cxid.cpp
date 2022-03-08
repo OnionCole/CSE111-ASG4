@@ -21,21 +21,49 @@ using namespace std;
 logstream outlog (cout);
 struct cxi_exit: public exception {};
 
+
+
+
+ifstream read_file_into_buffer(const char fn[FILENAME_SIZE], 
+      char buffer[BUFFER_SIZE]) {
+   ifstream ifs{ fn, istream::binary };
+   if (!ifs) {
+      return ifs;
+   }
+
+   ifs.seekg(0, ifs.end);
+   int len = ifs.tellg();
+   ifs.seekg(0, ifs.beg);
+   
+   ifs.read(buffer, len);
+   return ifs;
+}
+
+ofstream write_file_from_buffer(const char fn[FILENAME_SIZE], 
+      const char buffer[BUFFER_SIZE], const uint32_t bytes) {
+   ofstream ofs{ fn, ostream::out | ostream::binary
+         | ostream::trunc };
+   if (ofs) {
+      ofs.write(buffer, bytes);
+   }
+   return ofs;
+}
+
+
+
+
 void reply_put(accepted_socket& client_sock, cxi_header& header) {
    // ASSUMING FILE FITS IN ONE BUFFER
 
-   ofstream ofs{ header.filename, ostream::out | ostream::binary 
-         | ostream::trunc };
    uint32_t bytes = ntohl(header.nbytes);
 
    char payload[BUFFER_SIZE];
    recv_packet(client_sock, &payload, bytes);
-   if (ofs) {
-      ofs.write(payload, bytes);
-   }
+
+   ofstream ofs = write_file_from_buffer(header.filename, payload, 
+         bytes);
 
    // send back
-
    if (!ofs) {
       header.command = cxi_command::NAK;
       header.nbytes = htonl((int32_t)errno);
@@ -44,8 +72,40 @@ void reply_put(accepted_socket& client_sock, cxi_header& header) {
       header.nbytes = htonl((int32_t)0);
    }
    memset(header.filename, 0, FILENAME_SIZE);
-
    send_packet(client_sock, &header, sizeof header);
+}
+
+void reply_get(accepted_socket& client_sock, cxi_header& header) {
+   // ASSUMING FILE FITS IN ONE BUFFER
+
+   char payload[BUFFER_SIZE];
+   ifstream ifs = read_file_into_buffer(header.filename, payload);
+
+   // send ACK header
+   if (!ifs) {
+      header.command = cxi_command::NAK;
+      header.nbytes = htonl((int32_t)errno);
+   } else {
+      ifs.seekg(0, ifs.end);
+      int len = ifs.tellg();
+      ifs.seekg(0, ifs.beg);
+
+      header.command = cxi_command::FILEOUT;
+      header.nbytes = htonl((int32_t)len);
+   }
+   memset(header.filename, 0, FILENAME_SIZE);
+   send_packet(client_sock, &header, sizeof header);
+
+   // send payload
+   if (!ifs) {
+      // don't send a payload
+   } else {
+      ifs.seekg(0, ifs.end);
+      int len = ifs.tellg(); 
+      ifs.seekg(0, ifs.beg);
+
+      send_packet(client_sock, payload, len);
+   }
 }
 
 void reply_rm(accepted_socket& client_sock, cxi_header& header) {
@@ -57,12 +117,8 @@ void reply_rm(accepted_socket& client_sock, cxi_header& header) {
       header.nbytes = htonl((int32_t)0);
    }
    memset(header.filename, 0, FILENAME_SIZE);
-   
    send_packet(client_sock, &header, sizeof header);
 }
-
-void reply_get(accepted_socket& client_sock, cxi_header& header) {}
-
 
 void reply_ls (accepted_socket& client_sock, cxi_header& header) {
    static const char ls_cmd[] = "ls -l 2>&1";
