@@ -86,7 +86,7 @@ void cxi_put(client_socket& server, string fn) {
    hdr.command = cxi_command::PUT;
 
    char payload[BUFFER_SIZE];
-   ifstream ifs = read_file_into_buffer(fn, payload);
+   ifstream ifs = read_file_into_buffer(hdr.filename, payload);
 
    if (!ifs) {
       throw socket_sys_error("Err: cxi_put: ifstream fail");
@@ -118,6 +118,8 @@ void cxi_get(client_socket& server, string fn) {
 
    cxi_header hdr;
    strncpy(hdr.filename, fn.c_str(), FILENAME_SIZE);
+   char fn_cstr_cpy[FILENAME_SIZE] {};
+   strncpy(fn_cstr_cpy, fn.c_str(), FILENAME_SIZE);
    hdr.command = cxi_command::GET;
    hdr.nbytes = 0;
    send_packet(server, &hdr, sizeof hdr);
@@ -130,7 +132,8 @@ void cxi_get(client_socket& server, string fn) {
       int bytes = ntohl(hdr.nbytes);
       char payload[BUFFER_SIZE];
       recv_packet(server, &payload, bytes);
-      ofstream ofs = write_file_from_buffer(fn, payload, bytes);
+      ofstream ofs = write_file_from_buffer(fn_cstr_cpy, payload, 
+            bytes);
       if (!ofs) {
          throw socket_sys_error("Err: cxi_get: ofstream fail");
       }
@@ -220,7 +223,8 @@ int main (int argc, char** argv) {
          string com = line;
          string fn = "";
          int spos = line.find(" ");
-         if (spos != (int)string::npos) {  // found a whitespace
+         if (spos != static_cast<int>(string::npos)) {  // 
+               // found a whitespace
             com = line.substr(0, spos);
             line.erase(0, spos + 1);
             fn = line;
