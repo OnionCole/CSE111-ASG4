@@ -15,6 +15,8 @@ using namespace std;
 #include "protocol.h"
 #include "socket.h"
 
+#include <fstream>
+
 # define BUFFER_SIZE 0x1000
 
 
@@ -24,8 +26,7 @@ struct cxi_exit: public exception {};
 
 
 
-ifstream read_file_into_buffer(const char fn[FILENAME_SIZE], 
-      char buffer[BUFFER_SIZE]) {
+ifstream read_file_into_buffer(const char* fn, char* buffer) {
    ifstream ifs{ fn, istream::binary };
    if (!ifs) {
       return ifs;
@@ -39,8 +40,8 @@ ifstream read_file_into_buffer(const char fn[FILENAME_SIZE],
    return ifs;
 }
 
-ofstream write_file_from_buffer(const char fn[FILENAME_SIZE], 
-      const char buffer[BUFFER_SIZE], const uint32_t bytes) {
+ofstream write_file_from_buffer(const char* fn, const char* buffer, 
+      const uint32_t bytes) {
    ofstream ofs{ fn, ostream::out | ostream::binary
          | ostream::trunc };
    if (ofs) {
@@ -66,10 +67,10 @@ void reply_put(accepted_socket& client_sock, cxi_header& header) {
    // send back
    if (!ofs) {
       header.command = cxi_command::NAK;
-      header.nbytes = htonl((int32_t)errno);
+      header.nbytes = htonl(errno);
    } else {
       header.command = cxi_command::ACK;
-      header.nbytes = htonl((int32_t)0);
+      header.nbytes = htonl(0);
    }
    memset(header.filename, 0, FILENAME_SIZE);
    send_packet(client_sock, &header, sizeof header);
@@ -84,14 +85,14 @@ void reply_get(accepted_socket& client_sock, cxi_header& header) {
    // send ACK header
    if (!ifs) {
       header.command = cxi_command::NAK;
-      header.nbytes = htonl((int32_t)errno);
+      header.nbytes = htonl(errno);
    } else {
       ifs.seekg(0, ifs.end);
       int len = ifs.tellg();
       ifs.seekg(0, ifs.beg);
 
       header.command = cxi_command::FILEOUT;
-      header.nbytes = htonl((int32_t)len);
+      header.nbytes = htonl(len);
    }
    memset(header.filename, 0, FILENAME_SIZE);
    send_packet(client_sock, &header, sizeof header);
@@ -111,10 +112,10 @@ void reply_get(accepted_socket& client_sock, cxi_header& header) {
 void reply_rm(accepted_socket& client_sock, cxi_header& header) {
    if (unlink(header.filename) != 0) {  // fail
       header.command = cxi_command::NAK;
-      header.nbytes = htonl((int32_t)errno);
+      header.nbytes = htonl(errno);
    } else {  // success
       header.command = cxi_command::ACK;
-      header.nbytes = htonl((int32_t)0);
+      header.nbytes = htonl(0);
    }
    memset(header.filename, 0, FILENAME_SIZE);
    send_packet(client_sock, &header, sizeof header);

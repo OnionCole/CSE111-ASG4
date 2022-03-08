@@ -17,6 +17,11 @@ using namespace std;
 #include "protocol.h"
 #include "socket.h"
 
+#include <fstream>
+
+# define BUFFER_SIZE 0x1000
+
+
 logstream outlog (cout);
 struct cxi_exit: public exception {};
 
