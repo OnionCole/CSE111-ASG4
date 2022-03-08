@@ -161,19 +161,15 @@ void run_server (accepted_socket& client_sock) {
          DEBUGF ('h', "received header " << header);
          switch (header.command) {
             case cxi_command::PUT:
-               outlog << "recieved PUT" << endl;
                reply_put (client_sock, header);
                break;
             case cxi_command::RM:
-               outlog << "recieved RM" << endl;
                reply_rm(client_sock, header);
                break;
             case cxi_command::GET:
-               outlog << "recieved GET" << endl;
                reply_get(client_sock, header);
                break;
             case cxi_command::LS:
-               outlog << "recieved LS" << endl;
                reply_ls(client_sock, header);
                break;
             default:
