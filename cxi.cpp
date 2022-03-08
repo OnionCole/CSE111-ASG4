@@ -25,6 +25,36 @@ using namespace std;
 logstream outlog (cout);
 struct cxi_exit: public exception {};
 
+
+
+
+ifstream read_file_into_buffer(const char* fn, char* buffer) {
+   ifstream ifs{ fn, istream::binary };
+   if (!ifs) {
+      return ifs;
+   }
+
+   ifs.seekg(0, ifs.end);
+   int len = ifs.tellg();
+   ifs.seekg(0, ifs.beg);
+
+   ifs.read(buffer, len);
+   return ifs;
+}
+
+ofstream write_file_from_buffer(const char* fn, const char* buffer,
+      const uint32_t bytes) {
+   ofstream ofs{ fn, ostream::out | ostream::binary
+         | ostream::trunc };
+   if (ofs) {
+      ofs.write(buffer, bytes);
+   }
+   return ofs;
+}
+
+
+
+
 unordered_map<string,cxi_command> command_map {
    {"exit", cxi_command::EXIT},
    {"help", cxi_command::HELP},
@@ -51,13 +81,63 @@ void cxi_help() {
 void cxi_put(client_socket& server, char* fn) {
    // fn is ready to go into the header
 
+   cxi_header hdr;
+   hdr.filename = fn;
+   hdr.command = cxi_command::PUT;
 
+   char payload[BUFFER_SIZE];
+   ifstream ifs = read_file_into_buffer(fn, payload);
+
+   if (!ifs) {
+      throw socket_sys_error("Err: cxi_put: ifstream fail");
+   }
+
+   ifs.seekg(0, ifs.end);
+   int len = ifs.tellg();
+   ifs.seekg(0, ifs.beg);
+   hdr.nbytes = htonl(len);
+
+   // send packets
+   send_packet(server, &hdr, sizeof hdr);
+   send_packet(server, payload, len);
+
+   // recieve packet
+   recv_packet(server, &hdr, sizeof hdr);
+   if (hdr.command == cxi_command::NAK) {
+      cout << "PUT: FAILURE: NAK: errno:" << 
+            strerror(ntohl(hdr.nbytes)) << endl;
+   } else if (hdr.command == cxi_command::ACK) {
+      cout << "PUT: SUCCESS: ACK" << endl;
+   } else {
+      cout << "PUT: UNCERTAIN: recieved neither NAK nor ACK" << endl;
+   }
 }
 
 void cxi_get(client_socket& server, char* fn) {
    // fn is ready to go into the header
 
+   cxi_header hdr;
+   hdr.filename = fn;
+   hdr.command = cxi_command::GET;
+   hdr.nbytes = 0;
+   send_packet(server, &hdr, sizeof hdr);
 
+   recv_packet(server, &hdr, sizeof hdr);
+   if (hdr.command == cxi_command::NAK) {
+      cout << "GET: FAILURE: NAK: errno:" << 
+            strerror(ntohl(hdr.nbytes)) << endl;
+   } else if (hdr.command == cxi_command::FILEOUT) {
+      int bytes = ntohl(hdr.nbytes);
+      char payload[BUFFER_SIZE];
+      recv_packet(server, &payload, bytes);
+      ofstream ofs = write_file_from_buffer(fn, payload, bytes);
+      if (!ofs) {
+         throw socket_sys_error("Err: cxi_get: ofstream fail");
+      }
+      cout << "GET: SUCCESS: FILEOUT" << endl;
+   } else {
+      cout << "GET: UNCERTAIN: recieved neither NAK nor ACK" << endl;
+   }
 }
 
 void cxi_rm(client_socket& server, char* fn) {
